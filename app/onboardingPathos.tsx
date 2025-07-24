@@ -1,20 +1,21 @@
 import { useRouter } from 'expo-router';
 import React from 'react';
-import { StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { Image, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 
 export default function OnboardingPathos() {
   const router = useRouter();
   return (
     <View style={styles.container}>
       <View style={styles.spacer} />
-      <View style={styles.kywBox}>
-        <Text style={styles.kywText}>AN</Text>
+      <View style={styles.logoBox}>
+        <Image source={require('../assets/images/icon.png')} style={styles.logoImage} />
       </View>
       <View style={styles.flexGrow} />
-      <Text style={styles.title}>SHOW THE Emotion And Amplify it</Text>
-      <Text style={styles.subtitle}>Maybe an image? Maybe something that really triggers that emotion?</Text>
+      <Text style={styles.title}>Not this fight again...</Text>
+      <Text style={styles.subtitle}>The daily stress. The wasted time. The guilt of more takeout.</Text>
+      <Text style={styles.description}>You deserve peaceful evenings and happy meals together. Let's end the dinner drama. Forever. ❤️❤️</Text>
       <View style={styles.flexGrow} />
-      <TouchableOpacity style={styles.button} onPress={() => router.push('/onboarding3')}>
+      <TouchableOpacity style={styles.button} onPress={() => router.push('/personalization')}>
         <Text style={styles.buttonText}>Continue</Text>
       </TouchableOpacity>
       <View style={styles.spacer} />
@@ -23,13 +24,61 @@ export default function OnboardingPathos() {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, justifyContent: 'center', alignItems: 'center', padding: 24, backgroundColor: '#fff' },
+  container: { 
+    flex: 1, 
+    justifyContent: 'center', 
+    alignItems: 'center', 
+    padding: 24, 
+    backgroundColor: '#fff' 
+  },
   spacer: { height: 40 },
-  kywBox: { backgroundColor: '#7CFFB2', borderRadius: 32, paddingVertical: 24, paddingHorizontal: 36, marginBottom: 32, borderWidth: 1, borderColor: '#222' },
-  kywText: { fontSize: 32, fontWeight: 'bold', color: '#222', textAlign: 'center' },
-  title: { fontSize: 48, fontWeight: 'bold', marginBottom: 12, textAlign: 'center', color: '#111' },
-  subtitle: { fontSize: 28, color: '#111', marginBottom: 32, textAlign: 'center' },
+  logoBox: { 
+    marginBottom: 32,
+    width: 120,
+    height: 120,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  logoImage: {
+    width: 120,
+    height: 120,
+    resizeMode: 'contain',
+  },
+  title: { 
+    fontSize: 32, 
+    fontWeight: 'bold', 
+    marginBottom: 24, 
+    textAlign: 'center', 
+    color: '#000',
+    lineHeight: 40,
+  },
+  subtitle: { 
+    fontSize: 18, 
+    color: '#000', 
+    marginBottom: 16, 
+    textAlign: 'center',
+    lineHeight: 24,
+  },
+  description: { 
+    fontSize: 18, 
+    color: '#000', 
+    marginBottom: 32, 
+    textAlign: 'center',
+    lineHeight: 24,
+  },
   flexGrow: { flex: 1 },
-  button: { backgroundColor: '#000', paddingVertical: 20, paddingHorizontal: 48, borderRadius: 32, marginBottom: 12, width: '100%' },
-  buttonText: { color: '#fff', fontSize: 32, fontWeight: 'bold', textAlign: 'center' },
+  button: { 
+    backgroundColor: '#000', 
+    paddingVertical: 16, 
+    paddingHorizontal: 48, 
+    borderRadius: 20, 
+    marginBottom: 12, 
+    width: '100%' 
+  },
+  buttonText: { 
+    color: '#fff', 
+    fontSize: 18, 
+    fontWeight: 'bold', 
+    textAlign: 'center' 
+  },
 });

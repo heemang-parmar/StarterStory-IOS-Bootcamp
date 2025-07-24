@@ -22,9 +22,16 @@ export default function TabLayout() {
           ios: {
             // Use a transparent background on iOS to show the blur effect
             position: 'absolute',
-            display: 'none'
+            backgroundColor: 'rgba(255, 255, 255, 0.9)',
+            borderTopWidth: 0,
+            elevation: 0,
+            shadowOpacity: 0,
           },
-          default: {},
+          default: {
+            backgroundColor: '#fff',
+            borderTopWidth: 1,
+            borderTopColor: '#e0e0e0',
+          },
         }),
       }}>
       <Tabs.Screen
@@ -37,8 +44,8 @@ export default function TabLayout() {
       <Tabs.Screen
         name="detail"
         options={{
-          title: 'Detail Page',
-          tabBarIcon: ({ color }) => <IconSymbol size={28} name="paperplane.fill" color={color} />,
+          title: 'Detail',
+          tabBarIcon: ({ color }) => <IconSymbol size={28} name="doc.text.fill" color={color} />,
         }}
       />
       <Tabs.Screen
@@ -51,8 +58,8 @@ export default function TabLayout() {
       <Tabs.Screen
         name="loading"
         options={{
-          title: 'Loading Screen',
-          tabBarIcon: ({ color }) => <IconSymbol size={28} name="paperplane.fill" color={color} />,
+          title: 'Loading',
+          tabBarIcon: ({ color }) => <IconSymbol size={28} name="clock.fill" color={color} />,
         }}
       />
     </Tabs>

@@ -2,13 +2,13 @@ import { PersonalizationAnswers, personalizationAtom } from '@/lib/atoms';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useSetAtom } from 'jotai';
 import React, { useEffect, useRef, useState } from 'react';
-import { Animated, StyleSheet, Text, View } from 'react-native';
+import { Animated, Image, StyleSheet, Text, View } from 'react-native';
 
 const progressMessages = [
-  'figuring out the first question to ask you',
-  'analyzing your answers',
-  'personalizing your experience',
-  'almost done...'
+  'Finding perfect recipes based on your preferences...',
+  'Analyzing your cooking skill level',
+  'Personalizing your experience',
+  'Almost done...'
 ];
 
 export default function PersonalizingScreen() {
@@ -64,10 +64,10 @@ export default function PersonalizingScreen() {
 
   return (
     <View style={styles.container}>
-      <Text style={styles.title}>Personalizing</Text>
+      <Text style={styles.title}>Generating</Text>
       <Text style={styles.subtitle}>your first experience</Text>
-      <View style={styles.kywBox}>
-        <Text style={styles.kywText}>AN</Text>
+      <View style={styles.logoBox}>
+        <Image source={require('../assets/images/icon.png')} style={styles.logoImage} />
       </View>
       <Text style={styles.progress}>{progress}% complete</Text>
       <Text style={styles.progressSub}>{progressMessages[messageIndex]}</Text>
@@ -79,13 +79,66 @@ export default function PersonalizingScreen() {
 }
 
 const styles = StyleSheet.create({
-  container: { flex:1, justifyContent:'center', alignItems:'center', padding:24, backgroundColor:'#fff' },
-  title: { fontSize:40, fontWeight:'bold', marginBottom:0, textAlign:'center', color:'#111' },
-  subtitle: { fontSize:28, color:'#111', marginBottom:32, textAlign:'center', fontWeight:'400' },
-  kywBox: { backgroundColor: '#7CFFB2', borderRadius: 32, paddingVertical: 24, paddingHorizontal: 36, marginVertical: 32, borderWidth: 1, borderColor: '#222' },
-  kywText: { fontSize: 32, fontWeight: 'bold', color: '#222', textAlign: 'center' },
-  progress: { fontSize: 28, color: '#ccc', marginTop: 32, marginBottom: 8, textAlign: 'center' },
-  progressSub: { fontSize: 22, color: '#ccc', marginBottom: 32, textAlign: 'center' },
-  button: { backgroundColor:'#000', paddingVertical:20, paddingHorizontal:48, borderRadius:32, marginTop:24, width:'100%', alignItems:'center', marginBottom:24 },
-  buttonText: { color:'#fff', fontSize:32, fontWeight:'bold', textAlign:'center' },
+  container: { 
+    flex: 1, 
+    justifyContent: 'center', 
+    alignItems: 'center', 
+    padding: 24, 
+    backgroundColor: '#fff' 
+  },
+  title: { 
+    fontSize: 32, 
+    fontWeight: 'bold', 
+    marginBottom: 0, 
+    textAlign: 'center', 
+    color: '#000' 
+  },
+  subtitle: { 
+    fontSize: 18, 
+    color: '#000', 
+    marginBottom: 32, 
+    textAlign: 'center', 
+    fontWeight: '400' 
+  },
+  logoBox: { 
+    marginVertical: 32,
+    width: 120,
+    height: 120,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  logoImage: {
+    width: 120,
+    height: 120,
+    resizeMode: 'contain',
+  },
+  progress: { 
+    fontSize: 18, 
+    color: '#666', 
+    marginTop: 32, 
+    marginBottom: 8, 
+    textAlign: 'center' 
+  },
+  progressSub: { 
+    fontSize: 16, 
+    color: '#666', 
+    marginBottom: 32, 
+    textAlign: 'center' 
+  },
+  button: { 
+    backgroundColor: '#000', 
+    paddingVertical: 16, 
+    paddingHorizontal: 48, 
+    borderRadius: 20, 
+    marginTop: 24, 
+    width: '100%', 
+    alignItems: 'center', 
+    marginBottom: 24 
+  },
+  buttonText: { 
+    color: '#fff', 
+    fontSize: 18, 
+    fontWeight: 'bold', 
+    textAlign: 'center' 
+  },
 }); 

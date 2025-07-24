@@ -1,4 +1,5 @@
 import { supabase } from '@/lib/supabase';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { DefaultTheme, ThemeProvider } from '@react-navigation/native';
 import { useFonts } from 'expo-font';
 import { router, Stack } from 'expo-router';
@@ -11,46 +12,50 @@ export default function RootLayout() {
     SpaceMono: require('../assets/fonts/SpaceMono-Regular.ttf'),
   });
   const [isSignedIn, setIsSignedIn] = useState<boolean | null>(null);
+  const [hasSeenOnboarding, setHasSeenOnboarding] = useState<boolean | null>(null);
 
   useEffect(() => {
-    const checkSession = async () => {
+    const checkSessionAndOnboarding = async () => {
+      // Check if user has seen onboarding
+      const onboardingSeen = await AsyncStorage.getItem('hasSeenOnboarding');
+      setHasSeenOnboarding(onboardingSeen === 'true');
+      
+      // Check authentication status
       const { data } = await supabase.auth.getSession();
       setIsSignedIn(!!data.session && !!data.session.user);
     };
-    checkSession();
+    
+    checkSessionAndOnboarding();
+    
     const { data: listener } = supabase.auth.onAuthStateChange((event, session) => {
       const isAuthenticated = !!session && !!session.user;
       console.log('Auth state change:', event, 'isAuthenticated:', isAuthenticated);
       
-      // Update state first
       setIsSignedIn(isAuthenticated);
       
-      // Only handle automatic navigation for sign-in
-      // Sign-out navigation is handled manually in components
       if (event === 'SIGNED_IN' && isAuthenticated) {
         router.replace('/(tabs)');
       }
     });
+    
     return () => {
       listener?.subscription.unsubscribe();
     };
   }, []);
 
-  if (!loaded || isSignedIn === null) {
+  if (!loaded || isSignedIn === null || hasSeenOnboarding === null) {
     return null;
   }
+
+  // Show onboarding if user hasn't seen it yet, regardless of auth status
+  const shouldShowOnboarding = !hasSeenOnboarding;
 
   return (
     <ThemeProvider value={DefaultTheme}>
       <Stack
         screenOptions={{ headerShown: false }}
       >
-        {isSignedIn ? (
-          <>
-            <Stack.Screen name="(tabs)" />
-            <Stack.Screen name="+not-found" />
-          </>
-        ) : (
+        {shouldShowOnboarding ? (
           <>
             <Stack.Screen name="index" />
             <Stack.Screen name="onboarding1" />
@@ -63,6 +68,11 @@ export default function RootLayout() {
             <Stack.Screen name="personalizingscreen" />
             <Stack.Screen name="signup" />
             <Stack.Screen name="login" />
+            <Stack.Screen name="+not-found" />
+          </>
+        ) : (
+          <>
+            <Stack.Screen name="(tabs)" />
             <Stack.Screen name="+not-found" />
           </>
         )}
