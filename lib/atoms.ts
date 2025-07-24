@@ -1,5 +1,16 @@
 import { atomWithStorage } from 'jotai/utils';
 
+export interface Recipe {
+  name: string;
+  cookingTime: number;
+  difficulty: string;
+  servings: number;
+  ingredients: string[];
+  instructions: string;
+  matchReason: string;
+  nutritionHighlight: string;
+}
+
 export interface Session {
   id: string;
   date: string;
@@ -8,6 +19,10 @@ export interface Session {
   summary?: string;
   facts?: string[];
   furtherImpact?: string;
+  recipes?: Recipe[];
+  encouragement?: string;
+  shoppingTip?: string;
+  detectedIngredients?: string;
 }
 
 export const sessionsAtom = atomWithStorage<Session[]>('sessions', []);

@@ -16,10 +16,45 @@ export default function SignUp() {
       return;
     }
     setLoading(true);
-    const { error } = await supabase.auth.signUp({ email, password });
-    setLoading(false);
-    if (error) Alert.alert('Error', error.message);
-    else router.replace('/(tabs)');
+    
+    try {
+      const { data, error } = await supabase.auth.signUp({ 
+        email, 
+        password,
+        options: {
+          data: {
+            display_name: 'User'
+          }
+        }
+      });
+      
+      if (error) {
+        Alert.alert('Error', error.message);
+        return;
+      }
+
+      // If signup successful and user is created, initialize profile
+      if (data.user) {
+        const { error: profileError } = await supabase
+          .from('user_profiles')
+          .insert({
+            user_id: data.user.id,
+            display_name: 'User'
+          });
+
+        if (profileError) {
+          console.error('Error creating user profile:', profileError);
+          // Don't fail signup for profile creation error
+        }
+      }
+
+      router.replace('/(tabs)');
+    } catch (error) {
+      console.error('Signup error:', error);
+      Alert.alert('Error', 'Something went wrong. Please try again.');
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (

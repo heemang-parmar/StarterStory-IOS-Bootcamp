@@ -1,13 +1,63 @@
 import { Session, sessionsAtom } from '@/lib/atoms';
+import { supabase } from '@/lib/supabase';
 import { useRouter } from 'expo-router';
 import { useAtom } from 'jotai';
-import React, { useState } from 'react';
-import { FlatList, SafeAreaView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
+import React, { useEffect, useState } from 'react';
+import { FlatList, Image, KeyboardAvoidingView, Platform, StatusBar, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
 
 export default function HomeScreen() {
   const router = useRouter();
-  const [sessions] = useAtom(sessionsAtom);
+  const [sessions, setSessions] = useAtom(sessionsAtom);
   const [input, setInput] = useState('');
+  const [loading, setLoading] = useState(false);
+
+  // Load recipes from Supabase when component mounts
+  useEffect(() => {
+    loadRecipesFromDatabase();
+  }, []);
+
+  const loadRecipesFromDatabase = async () => {
+    try {
+      setLoading(true);
+      const { data: { session } } = await supabase.auth.getSession();
+      
+      if (!session) {
+        console.log('No session found, skipping recipe load');
+        return;
+      }
+
+      const { data: recipes, error } = await supabase
+        .from('recipes')
+        .select('*')
+        .eq('user_id', session.user.id)
+        .order('created_at', { ascending: false });
+
+      if (error) {
+        console.error('Error loading recipes:', error);
+        return;
+      }
+
+      if (recipes && recipes.length > 0) {
+        const sessionsFromDb: Session[] = recipes.map(recipe => ({
+          id: recipe.id,
+          date: recipe.date,
+          title: recipe.title,
+          summary: recipe.summary,
+          detectedIngredients: recipe.detected_ingredients,
+          encouragement: recipe.encouragement,
+          shoppingTip: recipe.shopping_tip,
+          recipes: recipe.recipe_data
+        }));
+
+        setSessions(sessionsFromDb);
+        console.log('Loaded', recipes.length, 'recipes from database');
+      }
+    } catch (error) {
+      console.error('Error in loadRecipesFromDatabase:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
 
   const handleSendMessage = () => {
     if (input.trim()) {
@@ -17,65 +67,55 @@ export default function HomeScreen() {
   };
 
   return (
-    <SafeAreaView style={styles.container}>
+    <KeyboardAvoidingView 
+      style={styles.container}
+      behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+      keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 20}
+    >
+      <StatusBar barStyle="dark-content" backgroundColor="#fff" />
       <View style={styles.header}>
-        <Text style={styles.headerTitle}>Your Sessions</Text>
-        <Text style={styles.headerSubtitle}>Ask anything to get started</Text>
+        <View style={styles.logoBox}>
+          <Image source={require('../../assets/images/icon.png')} style={styles.logoImage} />
+        </View>
+        <TouchableOpacity style={styles.settingsButton} onPress={() => router.push('/settings')}>
+          <Text style={styles.settingsIcon}>⚙️</Text>
+        </TouchableOpacity>
       </View>
-      
-      <FlatList
-        data={sessions}
-        keyExtractor={(item: Session) => item.id}
-        renderItem={({ item }) => (
-          <TouchableOpacity
-            style={styles.sessionItem}
-            onPress={() => router.push(`/detail?id=${item.id}`)}
-          >
-            <Text style={styles.sessionDate}>{item.date}</Text>
-            <Text style={styles.sessionTitle}>{item.title}</Text>
-            {item.summary && (
-              <Text style={styles.sessionSummary} numberOfLines={2}>
-                {item.summary}
-              </Text>
-            )}
-          </TouchableOpacity>
-        )}
-        ListEmptyComponent={
-          <View style={styles.emptyContainer}>
-            <Text style={styles.emptyTitle}>Welcome! 👋</Text>
-            <Text style={styles.emptyText}>
-              You haven't created any sessions yet. Type a question below to get started with your first AI-powered experience.
-            </Text>
-            <View style={styles.suggestionContainer}>
-              <Text style={styles.suggestionTitle}>Try asking:</Text>
-              <TouchableOpacity 
-                style={styles.suggestionButton}
-                onPress={() => setInput("What should I cook for dinner tonight?")}
-              >
-                <Text style={styles.suggestionText}>"What should I cook for dinner tonight?"</Text>
-              </TouchableOpacity>
-              <TouchableOpacity 
-                style={styles.suggestionButton}
-                onPress={() => setInput("Help me plan a weekend trip")}
-              >
-                <Text style={styles.suggestionText}>"Help me plan a weekend trip"</Text>
-              </TouchableOpacity>
-              <TouchableOpacity 
-                style={styles.suggestionButton}
-                onPress={() => setInput("Give me workout ideas for beginners")}
-              >
-                <Text style={styles.suggestionText}>"Give me workout ideas for beginners"</Text>
-              </TouchableOpacity>
+
+      <View style={styles.content}>
+        <Text style={styles.sectionTitle}>Previous Recipes</Text>
+        
+        <FlatList
+          data={sessions}
+          keyExtractor={(item: Session) => item.id}
+          renderItem={({ item }) => (
+            <TouchableOpacity
+              style={styles.sessionItem}
+              onPress={() => router.push(`/detail?id=${item.id}`)}
+            >
+              <View style={styles.sessionContent}>
+                <Text style={styles.sessionDate}>{item.date}</Text>
+                <Text style={styles.sessionTitle}>{item.title}</Text>
+              </View>
+              <Text style={styles.sessionArrow}>→</Text>
+            </TouchableOpacity>
+          )}
+          ListEmptyComponent={
+            <View style={styles.emptyContainer}>
+              <Text style={styles.emptyText}>No previous recipes yet</Text>
+              <Text style={styles.emptySubtext}>Start by asking something below!</Text>
             </View>
-          </View>
-        }
-        contentContainerStyle={styles.listContainer}
-      />
+          }
+          contentContainerStyle={styles.listContainer}
+          showsVerticalScrollIndicator={false}
+          keyboardShouldPersistTaps="handled"
+        />
+      </View>
       
       <View style={styles.inputContainer}>
         <TextInput
           style={styles.textInput}
-          placeholder="Ask anything to get started..."
+          placeholder="ask something here to get started!"
           placeholderTextColor="#999"
           value={input}
           onChangeText={setInput}
@@ -90,139 +130,129 @@ export default function HomeScreen() {
           <Text style={[styles.sendText, !input.trim() && styles.sendTextDisabled]}>→</Text>
         </TouchableOpacity>
       </View>
-    </SafeAreaView>
+    </KeyboardAvoidingView>
   );
 }
 
 const styles = StyleSheet.create({
   container: { 
     flex: 1, 
-    backgroundColor: '#fff' 
+    backgroundColor: '#fff',
+    paddingTop: StatusBar.currentHeight || 44, // Add padding for status bar
   },
   header: {
-    padding: 24,
-    paddingBottom: 16,
-    borderBottomWidth: 1,
-    borderBottomColor: '#f0f0f0',
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    padding: 16,
+    paddingTop: 8,
   },
-  headerTitle: {
-    fontSize: 28,
-    fontWeight: 'bold',
+  logoBox: { 
+    width: 60,
+    height: 60,
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderRadius: 12,
+  },
+  logoImage: {
+    width: 40,
+    height: 40,
+    resizeMode: 'contain',
+  },
+  settingsButton: {
+    padding: 8,
+  },
+  settingsIcon: {
+    fontSize: 24,
     color: '#000',
-    marginBottom: 4,
   },
-  headerSubtitle: {
+  content: {
+    flex: 1,
+    paddingHorizontal: 16,
+  },
+  sectionTitle: {
     fontSize: 16,
-    color: '#666',
+    color: '#333',
+    marginBottom: 16,
+    fontWeight: '600',
   },
   listContainer: { 
     flexGrow: 1,
-    padding: 24 
   },
   sessionItem: { 
-    marginBottom: 16, 
-    padding: 16, 
-    borderRadius: 12, 
-    backgroundColor: '#f8f9fa',
-    borderWidth: 1,
-    borderColor: '#e9ecef',
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 16,
+    paddingHorizontal: 16,
+    borderBottomWidth: 1,
+    borderBottomColor: '#f0f0f0',
+  },
+  sessionContent: {
+    flex: 1,
   },
   sessionDate: { 
-    fontSize: 12, 
-    color: '#6c757d',
+    fontSize: 14, 
+    color: '#999',
     marginBottom: 4,
   },
   sessionTitle: { 
     fontSize: 16, 
-    fontWeight: '600',
+    fontWeight: '500',
     color: '#000',
-    marginBottom: 4,
   },
-  sessionSummary: {
-    fontSize: 14,
-    color: '#6c757d',
-    lineHeight: 20,
+  sessionArrow: {
+    fontSize: 20,
+    color: '#999',
+    marginLeft: 16,
   },
   emptyContainer: {
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
     paddingHorizontal: 24,
-    paddingTop: 60,
-  },
-  emptyTitle: {
-    fontSize: 24,
-    fontWeight: 'bold',
-    color: '#000',
-    marginBottom: 12,
-    textAlign: 'center',
+    paddingVertical: 60,
   },
   emptyText: {
     fontSize: 16,
-    color: '#666',
+    color: '#999',
     textAlign: 'center',
-    lineHeight: 24,
-    marginBottom: 32,
-  },
-  suggestionContainer: {
-    width: '100%',
-  },
-  suggestionTitle: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: '#000',
-    marginBottom: 12,
-  },
-  suggestionButton: {
-    backgroundColor: '#f8f9fa',
-    padding: 12,
-    borderRadius: 8,
     marginBottom: 8,
-    borderWidth: 1,
-    borderColor: '#e9ecef',
   },
-  suggestionText: {
+  emptySubtext: {
     fontSize: 14,
-    color: '#495057',
+    color: '#999',
+    textAlign: 'center',
   },
   inputContainer: {
     flexDirection: 'row',
     padding: 16,
-    backgroundColor: '#fff',
-    borderTopWidth: 1,
-    borderTopColor: '#f0f0f0',
-    alignItems: 'flex-end',
+    backgroundColor: '#000',
+    borderRadius: 24,
+    margin: 16,
+    alignItems: 'center',
   },
   textInput: {
     flex: 1,
-    backgroundColor: '#f8f9fa',
-    borderRadius: 20,
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-    marginRight: 8,
+    color: '#fff',
     fontSize: 16,
-    maxHeight: 100,
-    borderWidth: 1,
-    borderColor: '#e9ecef',
+    paddingVertical: 8,
+    paddingHorizontal: 12,
   },
   sendButton: {
-    backgroundColor: '#007AFF',
-    padding: 12,
+    backgroundColor: 'transparent',
+    padding: 8,
     borderRadius: 20,
-    width: 40,
-    height: 40,
-    justifyContent: 'center',
-    alignItems: 'center',
+    marginLeft: 8,
   },
   sendButtonDisabled: {
-    backgroundColor: '#e9ecef',
+    opacity: 0.5,
   },
   sendText: {
     color: '#fff',
-    fontSize: 18,
+    fontSize: 20,
     fontWeight: 'bold',
   },
   sendTextDisabled: {
-    color: '#adb5bd',
+    color: '#666',
   },
 });
