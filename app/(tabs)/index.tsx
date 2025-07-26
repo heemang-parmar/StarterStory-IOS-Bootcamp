@@ -4,6 +4,7 @@ import { useRouter } from 'expo-router';
 import { useAtom } from 'jotai';
 import React, { useEffect, useState } from 'react';
 import { FlatList, Image, KeyboardAvoidingView, Platform, StatusBar, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
+import { NotificationBell } from '@/components/NotificationBell';
 
 export default function HomeScreen() {
   const router = useRouter();
@@ -46,7 +47,8 @@ export default function HomeScreen() {
           detectedIngredients: recipe.detected_ingredients,
           encouragement: recipe.encouragement,
           shoppingTip: recipe.shopping_tip,
-          recipes: recipe.recipe_data
+          recipes: recipe.recipe_data,
+          image: recipe.image_url
         }));
 
         setSessions(sessionsFromDb);
@@ -66,6 +68,7 @@ export default function HomeScreen() {
     }
   };
 
+
   return (
     <KeyboardAvoidingView 
       style={styles.container}
@@ -77,9 +80,12 @@ export default function HomeScreen() {
         <View style={styles.logoBox}>
           <Image source={require('../../assets/images/icon.png')} style={styles.logoImage} />
         </View>
-        <TouchableOpacity style={styles.settingsButton} onPress={() => router.push('/settings')}>
-          <Text style={styles.settingsIcon}>⚙️</Text>
-        </TouchableOpacity>
+        <View style={styles.headerRight}>
+          <NotificationBell />
+          <TouchableOpacity style={styles.settingsButton} onPress={() => router.push('/settings')}>
+            <Text style={styles.settingsIcon}>⚙️</Text>
+          </TouchableOpacity>
+        </View>
       </View>
 
       <View style={styles.content}>
@@ -146,6 +152,10 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     padding: 16,
     paddingTop: 8,
+  },
+  headerRight: {
+    flexDirection: 'row',
+    alignItems: 'center',
   },
   logoBox: { 
     width: 60,
@@ -236,7 +246,6 @@ const styles = StyleSheet.create({
     color: '#fff',
     fontSize: 16,
     paddingVertical: 8,
-    paddingHorizontal: 12,
   },
   sendButton: {
     backgroundColor: 'transparent',

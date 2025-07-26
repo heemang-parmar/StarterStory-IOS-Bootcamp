@@ -7,7 +7,7 @@ import { ActivityIndicator, Alert, StyleSheet, Text, View } from 'react-native';
 
 export default function LoadingScreen() {
   const router = useRouter();
-  const { prompt } = useLocalSearchParams<{ prompt: string }>();
+  const { prompt } = useLocalSearchParams<{ prompt?: string }>();
   const [, setSessions] = useAtom(sessionsAtom);
 
   useEffect(() => {
@@ -45,7 +45,9 @@ export default function LoadingScreen() {
             'Content-Type': 'application/json',
             'Authorization': `Bearer ${authSession.access_token}`,
           },
-          body: JSON.stringify({ prompt }),
+          body: JSON.stringify({ 
+            prompt: prompt
+          }),
           signal: controller.signal,
         });
 
@@ -112,6 +114,7 @@ export default function LoadingScreen() {
           encouragement: recipeData.encouragement || '',
           shoppingTip: recipeData.shoppingTip || '',
           detectedIngredients: recipeData.detectedIngredients || '',
+          image: undefined,
         };
         
         console.log('Created session object:', newSession);
@@ -127,7 +130,8 @@ export default function LoadingScreen() {
             detected_ingredients: newSession.detectedIngredients,
             encouragement: newSession.encouragement,
             shopping_tip: newSession.shoppingTip,
-            recipe_data: newSession.recipes
+            recipe_data: newSession.recipes,
+            image_url: null
           });
 
         if (insertError) {
@@ -177,7 +181,9 @@ export default function LoadingScreen() {
     <View style={styles.container}>
       <Text style={styles.title}>Creating your personalized recipes</Text>
       <ActivityIndicator size="large" color="#000" style={styles.spinner} />
-      <Text style={styles.subtitle}>Analyzing ingredients and preferences...</Text>
+      <Text style={styles.subtitle}>
+        Analyzing ingredients and preferences...
+      </Text>
       <View style={styles.button}>
         <Text style={styles.buttonText}>Please Wait</Text>
       </View>

@@ -6,7 +6,387 @@ import * as ImagePicker from 'expo-image-picker';
 import { useRouter } from 'expo-router';
 import { useSetAtom } from 'jotai';
 import React, { useEffect, useState } from 'react';
-import { ActivityIndicator, Alert, SafeAreaView, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
+import { ActivityIndicator, Alert, SafeAreaView, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View, Modal } from 'react-native';
+import { decode } from 'base64-arraybuffer';
+
+// Partner Section Component
+function PartnerSection() {
+  const [partner, setPartner] = useState<any>(null);
+  const [pendingRequests, setPendingRequests] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [showAddPartnerModal, setShowAddPartnerModal] = useState(false);
+  const [partnerEmail, setPartnerEmail] = useState('');
+  const [sending, setSending] = useState(false);
+  const [currentSession, setCurrentSession] = useState<any>(null);
+
+  useEffect(() => {
+    loadPartnerData();
+  }, []);
+
+  const loadPartnerData = async () => {
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) return;
+      
+      // Store session for later use
+      setCurrentSession(session);
+
+      // Check if user has a partner
+      const { data: partnership } = await supabase
+        .from('partnerships')
+        .select('*')
+        .or(`user1_id.eq.${session.user.id},user2_id.eq.${session.user.id}`)
+        .single();
+
+      if (partnership) {
+        // Get partner's ID
+        const partnerId = partnership.user1_id === session.user.id 
+          ? partnership.user2_id 
+          : partnership.user1_id;
+
+        // Get partner's profile
+        const { data: partnerProfile } = await supabase
+          .from('user_profiles')
+          .select('*')
+          .eq('user_id', partnerId)
+          .single();
+
+        setPartner(partnerProfile);
+      }
+
+      // Get pending requests - use case-insensitive email matching
+      const { data: requests, error: requestsError } = await supabase
+        .from('partner_requests')
+        .select('*')
+        .eq('status', 'pending')
+        .or(`sender_id.eq.${session.user.id},recipient_email.ilike.${session.user.email}`);
+
+      console.log('Partner requests query result:', { requests, error: requestsError });
+      console.log('Current user email:', session.user.email);
+      console.log('Current user ID:', session.user.id);
+      
+      if (requestsError) {
+        console.error('Error loading partner requests:', requestsError);
+        // Only show error if user doesn't have a partner
+        if (!partnership) {
+          console.warn('Could not load partner requests - check RLS policies');
+        }
+        setPendingRequests([]);
+      } else {
+        setPendingRequests(requests || []);
+        console.log('Found', requests?.length || 0, 'partner requests');
+        
+        // Get sender profiles for incoming requests
+        if (requests && requests.length > 0) {
+          const incomingRequests = requests.filter(r => r.recipient_email?.toLowerCase() === session.user.email?.toLowerCase());
+          const senderIds = [...new Set(incomingRequests.map(r => r.sender_id))];
+          
+          if (senderIds.length > 0) {
+            const { data: profiles } = await supabase
+              .from('user_profiles')
+              .select('user_id, display_name')
+              .in('user_id', senderIds);
+            
+            // Attach profiles to requests
+            const requestsWithProfiles = requests.map(req => ({
+              ...req,
+              sender_profile: profiles?.find(p => p.user_id === req.sender_id)
+            }));
+            
+            setPendingRequests(requestsWithProfiles);
+          }
+        }
+      }
+    } catch (error) {
+      console.error('Error loading partner data:', error);
+      // Don't show error alert if user already has a partner
+      if (!partner) {
+        // Only log the error, don't show alert
+        console.warn('Partner data loading error:', error);
+      }
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const sendPartnerRequest = async () => {
+    if (!partnerEmail.trim()) {
+      Alert.alert('Error', 'Please enter a valid email address');
+      return;
+    }
+
+    try {
+      setSending(true);
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) return;
+
+      // Check if user already has a partner
+      if (partner) {
+        Alert.alert('Error', 'You already have a partner. Unlink first to add a new one.');
+        return;
+      }
+
+      // Check if request already exists
+      const { data: existingRequest } = await supabase
+        .from('partner_requests')
+        .select('*')
+        .eq('sender_id', session.user.id)
+        .eq('recipient_email', partnerEmail)
+        .eq('status', 'pending')
+        .single();
+
+      if (existingRequest) {
+        Alert.alert('Info', 'Request already sent to this email');
+        return;
+      }
+
+      // Send new request
+      const { error } = await supabase
+        .from('partner_requests')
+        .insert({
+          sender_id: session.user.id,
+          recipient_email: partnerEmail.trim().toLowerCase()
+        });
+
+      if (error) throw error;
+
+      Alert.alert('Success', 'Partner request sent!');
+      setShowAddPartnerModal(false);
+      setPartnerEmail('');
+      loadPartnerData();
+    } catch (error) {
+      console.error('Error sending partner request:', error);
+      Alert.alert('Error', 'Failed to send partner request');
+    } finally {
+      setSending(false);
+    }
+  };
+
+  const acceptRequest = async (requestId: string) => {
+    try {
+      console.log('Accepting partner request:', requestId);
+      
+      const { data, error } = await supabase.rpc('accept_partner_request', {
+        request_id: requestId
+      });
+
+      if (error) {
+        console.error('RPC error:', error);
+        throw error;
+      }
+
+      console.log('Accept request result:', data);
+      Alert.alert('Success', 'Partner request accepted!');
+      
+      // Reload partner data after a short delay
+      setTimeout(() => {
+        loadPartnerData();
+      }, 500);
+    } catch (error: any) {
+      console.error('Error accepting request:', error);
+      Alert.alert(
+        'Error', 
+        `Failed to accept request: ${error?.message || 'Unknown error'}`
+      );
+    }
+  };
+
+  const rejectRequest = async (requestId: string) => {
+    try {
+      const { error } = await supabase
+        .from('partner_requests')
+        .update({ status: 'rejected', responded_at: new Date().toISOString() })
+        .eq('id', requestId);
+
+      if (error) throw error;
+
+      loadPartnerData();
+    } catch (error) {
+      console.error('Error rejecting request:', error);
+      Alert.alert('Error', 'Failed to reject request');
+    }
+  };
+
+  const unlinkPartner = async () => {
+    Alert.alert(
+      'Unlink Partner',
+      'Are you sure you want to unlink from your partner? This will remove all shared recipes.',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Unlink',
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              const { data: { session } } = await supabase.auth.getSession();
+              if (!session) return;
+
+              // Delete partnership
+              const { error } = await supabase
+                .from('partnerships')
+                .delete()
+                .or(`user1_id.eq.${session.user.id},user2_id.eq.${session.user.id}`);
+
+              if (error) throw error;
+
+              setPartner(null);
+              Alert.alert('Success', 'Partner unlinked successfully');
+            } catch (error) {
+              console.error('Error unlinking partner:', error);
+              Alert.alert('Error', 'Failed to unlink partner');
+            }
+          }
+        }
+      ]
+    );
+  };
+
+  if (loading) {
+    return (
+      <View style={styles.loadingContainer}>
+        <ActivityIndicator size="small" color="#000" />
+      </View>
+    );
+  }
+
+  const incomingRequests = pendingRequests.filter(req => 
+    req.recipient_email?.toLowerCase() === currentSession?.user?.email?.toLowerCase()
+  );
+  const outgoingRequests = pendingRequests.filter(req => 
+    req.sender_id === currentSession?.user?.id
+  );
+
+  return (
+    <>
+      {/* Debug info - only show when no partner */}
+      {!partner && (
+        <View style={styles.debugInfo}>
+          <Text style={styles.debugText}>Debug: {pendingRequests.length} total requests</Text>
+          <Text style={styles.debugText}>Incoming: {incomingRequests.length} | Outgoing: {outgoingRequests.length}</Text>
+          <TouchableOpacity onPress={loadPartnerData} style={styles.refreshButton}>
+            <Text style={styles.refreshText}>🔄 Refresh</Text>
+          </TouchableOpacity>
+        </View>
+      )}
+
+      {partner ? (
+        <View style={styles.partnerCard}>
+          <View style={styles.partnerInfo}>
+            <View style={styles.partnerAvatar}>
+              {partner.profile_image_url ? (
+                <Image
+                  source={{ uri: partner.profile_image_url }}
+                  style={styles.partnerAvatarImage}
+                  contentFit="cover"
+                />
+              ) : (
+                <Text style={styles.partnerAvatarText}>
+                  {partner.display_name?.charAt(0).toUpperCase()}
+                </Text>
+              )}
+            </View>
+            <Text style={styles.partnerName}>{partner.display_name}</Text>
+          </View>
+          <TouchableOpacity onPress={unlinkPartner} style={styles.unlinkButton}>
+            <Text style={styles.unlinkText}>Unlink</Text>
+          </TouchableOpacity>
+        </View>
+      ) : (
+        <TouchableOpacity style={styles.linkButton} onPress={() => setShowAddPartnerModal(true)}>
+          <Text style={styles.linkText}>Add Partner</Text>
+          <Text style={styles.arrow}>→</Text>
+        </TouchableOpacity>
+      )}
+
+      {/* Incoming Requests */}
+      {incomingRequests.length > 0 && (
+        <View style={styles.requestsSection}>
+          <Text style={styles.requestsTitle}>Pending Invitations</Text>
+          {incomingRequests.map((request) => (
+            <View key={request.id} style={styles.requestCard}>
+              <Text style={styles.requestText}>
+                From: {request.sender_profile?.display_name || request.sender_id}
+              </Text>
+              <View style={styles.requestButtons}>
+                <TouchableOpacity 
+                  style={[styles.requestButton, styles.acceptButton]}
+                  onPress={() => acceptRequest(request.id)}
+                >
+                  <Text style={styles.acceptButtonText}>Accept</Text>
+                </TouchableOpacity>
+                <TouchableOpacity 
+                  style={[styles.requestButton, styles.rejectButton]}
+                  onPress={() => rejectRequest(request.id)}
+                >
+                  <Text style={styles.rejectButtonText}>Decline</Text>
+                </TouchableOpacity>
+              </View>
+            </View>
+          ))}
+        </View>
+      )}
+
+      {/* Outgoing Requests */}
+      {outgoingRequests.length > 0 && (
+        <View style={styles.requestsSection}>
+          <Text style={styles.requestsTitle}>Sent Requests</Text>
+          {outgoingRequests.map((request) => (
+            <View key={request.id} style={styles.requestCard}>
+              <Text style={styles.requestText}>To: {request.recipient_email}</Text>
+              <Text style={styles.pendingText}>Pending</Text>
+            </View>
+          ))}
+        </View>
+      )}
+
+      {/* Add Partner Modal */}
+      <Modal
+        visible={showAddPartnerModal}
+        animationType="slide"
+        transparent={true}
+        onRequestClose={() => setShowAddPartnerModal(false)}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalContent}>
+            <Text style={styles.modalTitle}>Add Partner</Text>
+            <Text style={styles.modalSubtitle}>
+              Enter your partner's email address to send them an invitation
+            </Text>
+            <TextInput
+              style={styles.modalInput}
+              placeholder="partner@email.com"
+              value={partnerEmail}
+              onChangeText={setPartnerEmail}
+              keyboardType="email-address"
+              autoCapitalize="none"
+              autoCorrect={false}
+            />
+            <View style={styles.modalButtons}>
+              <TouchableOpacity 
+                style={[styles.modalButton, styles.cancelModalButton]}
+                onPress={() => {
+                  setShowAddPartnerModal(false);
+                  setPartnerEmail('');
+                }}
+              >
+                <Text style={styles.cancelModalButtonText}>Cancel</Text>
+              </TouchableOpacity>
+              <TouchableOpacity 
+                style={[styles.modalButton, styles.sendModalButton]}
+                onPress={sendPartnerRequest}
+                disabled={sending}
+              >
+                <Text style={styles.sendModalButtonText}>
+                  {sending ? 'Sending...' : 'Send Invitation'}
+                </Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
+    </>
+  );
+}
 
 export default function Settings() {
   console.log('🔥 SETTINGS COMPONENT LOADED - NEW CODE VERSION 2.0 🔥');
@@ -193,10 +573,11 @@ export default function Settings() {
         allowsEditing: true,
         aspect: [1, 1],
         quality: 0.8,
+        base64: true, // Enable base64 for proper upload
       });
 
       if (!result.canceled && result.assets[0]) {
-        await uploadProfileImage(result.assets[0].uri);
+        await uploadProfileImage(result.assets[0]);
       }
     } catch (error) {
       console.error('Error taking photo:', error);
@@ -222,10 +603,11 @@ export default function Settings() {
         allowsEditing: true,
         aspect: [1, 1],
         quality: 0.8,
+        base64: true, // Enable base64 for proper upload
       });
 
       if (!result.canceled && result.assets[0]) {
-        await uploadProfileImage(result.assets[0].uri);
+        await uploadProfileImage(result.assets[0]);
       }
     } catch (error) {
       console.error('Error picking image:', error);
@@ -233,7 +615,7 @@ export default function Settings() {
     }
   };
 
-  const uploadProfileImage = async (imageUri: string) => {
+  const uploadProfileImage = async (imageAsset: any) => {
     try {
       setUploadingImage(true);
       
@@ -245,42 +627,45 @@ export default function Settings() {
 
       console.log('Starting image upload for user:', session.user.id);
 
+      // Check if base64 data is available
+      if (!imageAsset.base64) {
+        Alert.alert('Error', 'Image data not available. Please try again.');
+        return;
+      }
+
       // Create a unique filename with user ID in the path
-      const fileExt = imageUri.split('.').pop();
+      const fileExt = imageAsset.uri.split('.').pop() || 'jpg';
       const fileName = `${session.user.id}/${Date.now()}.${fileExt}`;
       
       console.log('Generated filename:', fileName);
+      console.log('Base64 string length:', imageAsset.base64.length);
       
-      // Convert image to blob for upload
-      const response = await fetch(imageUri);
-      const blob = await response.blob();
-      
-      console.log('Image blob created, size:', blob.size, 'type:', blob.type);
-      
-      // Upload to Supabase Storage
+      // Upload to Supabase Storage using base64-arraybuffer decode
       const { data: uploadData, error: uploadError } = await supabase.storage
         .from('profile-images')
-        .upload(fileName, blob, {
-          contentType: blob.type || `image/${fileExt}`,
+        .upload(fileName, decode(imageAsset.base64), {
+          contentType: imageAsset.type || `image/${fileExt}`,
           upsert: true
         });
+      
+      console.log('Supabase upload response:', { data: uploadData, error: uploadError });
 
       if (uploadError) {
         console.error('Upload error details:', uploadError);
         
         // Check if it's a bucket not found error
-        if (uploadError.message.includes('Bucket not found')) {
+        if (uploadError.message?.includes('Bucket not found')) {
           Alert.alert(
             'Storage Setup Required', 
             'The storage bucket needs to be created. Please contact support or run the database setup first.'
           );
-        } else if (uploadError.message.includes('403') || uploadError.message.includes('Unauthorized')) {
+        } else if (uploadError.message?.includes('403') || uploadError.message?.includes('Unauthorized')) {
           Alert.alert(
             'Permission Error', 
             'Storage permissions need to be configured. Please run the database setup to create storage policies.'
           );
         } else {
-          Alert.alert('Upload Error', `Failed to upload image: ${uploadError.message}`);
+          Alert.alert('Upload Error', `Failed to upload image: ${uploadError.message || uploadError}`);
         }
         return;
       }
@@ -651,6 +1036,11 @@ export default function Settings() {
             </View>
 
             <View style={styles.section}>
+              <Text style={styles.sectionTitle}>Partner</Text>
+              <PartnerSection />
+            </View>
+
+            <View style={styles.section}>
               <Text style={styles.sectionTitle}>Preferences</Text>
               <TouchableOpacity style={styles.linkButton} onPress={() => router.push('/preferences')}>
                 <Text style={styles.linkText}>Edit Preferences</Text>
@@ -927,5 +1317,199 @@ const styles = StyleSheet.create({
     fontSize: 12,
     color: '#999',
     marginTop: 4,
+  },
+  // Partner Section Styles
+  partnerCard: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    backgroundColor: '#f8f9fa',
+    borderRadius: 12,
+    padding: 16,
+    borderWidth: 1,
+    borderColor: '#e9ecef',
+  },
+  partnerInfo: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  partnerAvatar: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: '#e0e0e0',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginRight: 12,
+  },
+  partnerAvatarImage: {
+    width: '100%',
+    height: '100%',
+    borderRadius: 20,
+  },
+  partnerAvatarText: {
+    fontSize: 18,
+    fontWeight: 'bold',
+    color: '#333',
+  },
+  partnerName: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#000',
+  },
+  unlinkButton: {
+    paddingVertical: 6,
+    paddingHorizontal: 12,
+  },
+  unlinkText: {
+    fontSize: 14,
+    color: '#ff4444',
+    fontWeight: '500',
+  },
+  requestsSection: {
+    marginTop: 16,
+  },
+  requestsTitle: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#666',
+    marginBottom: 8,
+  },
+  requestCard: {
+    backgroundColor: '#fff',
+    borderRadius: 8,
+    padding: 12,
+    marginBottom: 8,
+    borderWidth: 1,
+    borderColor: '#e0e0e0',
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+  requestText: {
+    fontSize: 14,
+    color: '#333',
+    flex: 1,
+  },
+  requestButtons: {
+    flexDirection: 'row',
+    gap: 8,
+  },
+  requestButton: {
+    paddingVertical: 6,
+    paddingHorizontal: 12,
+    borderRadius: 6,
+  },
+  acceptButton: {
+    backgroundColor: '#4CAF50',
+  },
+  acceptButtonText: {
+    color: '#fff',
+    fontSize: 12,
+    fontWeight: '600',
+  },
+  rejectButton: {
+    backgroundColor: '#f0f0f0',
+    borderWidth: 1,
+    borderColor: '#e0e0e0',
+  },
+  rejectButtonText: {
+    color: '#666',
+    fontSize: 12,
+    fontWeight: '500',
+  },
+  pendingText: {
+    fontSize: 12,
+    color: '#999',
+    fontStyle: 'italic',
+  },
+  // Modal Styles
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  modalContent: {
+    backgroundColor: '#fff',
+    borderRadius: 16,
+    padding: 24,
+    width: '90%',
+    maxWidth: 400,
+  },
+  modalTitle: {
+    fontSize: 20,
+    fontWeight: '600',
+    color: '#000',
+    marginBottom: 8,
+    textAlign: 'center',
+  },
+  modalSubtitle: {
+    fontSize: 14,
+    color: '#666',
+    marginBottom: 20,
+    textAlign: 'center',
+  },
+  modalInput: {
+    borderWidth: 1,
+    borderColor: '#e0e0e0',
+    borderRadius: 8,
+    padding: 12,
+    fontSize: 16,
+    marginBottom: 20,
+  },
+  modalButtons: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    gap: 12,
+  },
+  modalButton: {
+    flex: 1,
+    paddingVertical: 12,
+    borderRadius: 8,
+    alignItems: 'center',
+  },
+  cancelModalButton: {
+    backgroundColor: '#f0f0f0',
+    borderWidth: 1,
+    borderColor: '#e0e0e0',
+  },
+  cancelModalButtonText: {
+    color: '#666',
+    fontSize: 16,
+    fontWeight: '500',
+  },
+  sendModalButton: {
+    backgroundColor: '#007AFF',
+  },
+  sendModalButtonText: {
+    color: '#fff',
+    fontSize: 16,
+    fontWeight: '600',
+  },
+  // Debug styles
+  debugInfo: {
+    backgroundColor: '#f0f0f0',
+    padding: 12,
+    borderRadius: 8,
+    marginBottom: 12,
+  },
+  debugText: {
+    fontSize: 12,
+    color: '#666',
+    marginBottom: 4,
+  },
+  refreshButton: {
+    marginTop: 4,
+    paddingVertical: 4,
+    paddingHorizontal: 8,
+    backgroundColor: '#007AFF',
+    borderRadius: 4,
+    alignSelf: 'flex-start',
+  },
+  refreshText: {
+    color: '#fff',
+    fontSize: 12,
+    fontWeight: '600',
   },
 });

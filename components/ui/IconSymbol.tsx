@@ -18,6 +18,14 @@ const MAPPING = {
   'paperplane.fill': 'send',
   'chevron.left.forwardslash.chevron.right': 'code',
   'chevron.right': 'chevron-right',
+  'bell': 'notifications',
+  'bell.fill': 'notifications',
+  'heart.fill': 'favorite',
+  'message.fill': 'chat',
+  'doc.text.fill': 'description',
+  'gearshape.fill': 'settings',
+  'clock.fill': 'access-time',
+  'xmark': 'close',
 } as IconMapping;
 
 /**
@@ -31,11 +39,11 @@ export function IconSymbol({
   color,
   style,
 }: {
-  name: IconSymbolName;
+  name: IconSymbolName | string;
   size?: number;
   color: string | OpaqueColorValue;
   style?: StyleProp<TextStyle>;
   weight?: SymbolWeight;
 }) {
-  return <MaterialIcons color={color} size={size} name={MAPPING[name]} style={style} />;
+  return <MaterialIcons color={color} size={size} name={MAPPING[name as IconSymbolName] || 'help-outline'} style={style} />;
 }

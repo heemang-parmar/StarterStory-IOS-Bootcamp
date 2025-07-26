@@ -9,6 +9,7 @@ CREATE TABLE IF NOT EXISTS recipes (
     encouragement TEXT,
     shopping_tip TEXT,
     recipe_data JSONB NOT NULL, -- Store the full recipe objects as JSON
+    image_data TEXT, -- Store base64 image data
     created_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL,
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL
 );
@@ -117,9 +118,18 @@ BEGIN
 END;
 $$;
 
+-- Update recipes table to use image_url instead of image_data
+ALTER TABLE recipes DROP COLUMN IF EXISTS image_data;
+ALTER TABLE recipes ADD COLUMN IF NOT EXISTS image_url TEXT;
+
 -- Create storage bucket for profile images
 INSERT INTO storage.buckets (id, name, public) 
 VALUES ('profile-images', 'profile-images', true)
+ON CONFLICT (id) DO NOTHING;
+
+-- Create storage bucket for ingredient images
+INSERT INTO storage.buckets (id, name, public) 
+VALUES ('ingredient-images', 'ingredient-images', true)
 ON CONFLICT (id) DO NOTHING;
 
 -- Drop existing storage policies if they exist to avoid conflicts
@@ -140,4 +150,17 @@ CREATE POLICY "Anyone can update profile images" ON storage.objects
 FOR UPDATE USING (bucket_id = 'profile-images');
 
 CREATE POLICY "Anyone can delete profile images" ON storage.objects
-FOR DELETE USING (bucket_id = 'profile-images'); 
+FOR DELETE USING (bucket_id = 'profile-images');
+
+-- Create storage policies for ingredient images
+CREATE POLICY "Authenticated users can upload ingredient images" ON storage.objects
+FOR INSERT WITH CHECK (bucket_id = 'ingredient-images' AND auth.role() = 'authenticated');
+
+CREATE POLICY "Anyone can view ingredient images" ON storage.objects
+FOR SELECT USING (bucket_id = 'ingredient-images');
+
+CREATE POLICY "Authenticated users can update their ingredient images" ON storage.objects
+FOR UPDATE USING (bucket_id = 'ingredient-images' AND auth.role() = 'authenticated');
+
+CREATE POLICY "Authenticated users can delete their ingredient images" ON storage.objects
+FOR DELETE USING (bucket_id = 'ingredient-images' AND auth.role() = 'authenticated'); 
