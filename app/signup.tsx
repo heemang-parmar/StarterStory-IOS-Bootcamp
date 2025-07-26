@@ -2,9 +2,12 @@ import { supabase } from '@/lib/supabase';
 import { useRouter } from 'expo-router';
 import React, { useState } from 'react';
 import { Alert, Image, KeyboardAvoidingView, Platform, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
+import { useAtomValue } from 'jotai';
+import { personalizationAtom } from '@/lib/atoms';
 
 export default function SignUp() {
   const router = useRouter();
+  const personalizationAnswers = useAtomValue(personalizationAtom);
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [confirm, setConfirm] = useState('');
@@ -43,14 +46,38 @@ export default function SignUp() {
           });
 
         if (profileError) {
-          console.error('Error creating user profile:', profileError);
+          console.log('Error creating user profile:', profileError);
           // Don't fail signup for profile creation error
+        }
+
+        // Save personalization preferences if they exist
+        if (personalizationAnswers && personalizationAnswers.q1) {
+          console.log('Saving stored personalization preferences...');
+          
+          const dietaryRestrictions = personalizationAnswers.q2 ? 
+            personalizationAnswers.q2.split(', ').filter(item => item.trim() !== '') : [];
+          
+          const { error: prefError } = await supabase
+            .from('user_preferences')
+            .insert({
+              user_id: data.user.id,
+              cooking_skill: personalizationAnswers.q1 || '',
+              dietary_restrictions: dietaryRestrictions,
+              favorite_cuisines: personalizationAnswers.q3 || [],
+            });
+
+          if (prefError) {
+            console.log('Error saving preferences after signup:', prefError);
+            // Don't fail signup for preference save error
+          } else {
+            console.log('Preferences saved successfully after signup');
+          }
         }
       }
 
       router.replace('/(tabs)');
     } catch (error) {
-      console.error('Signup error:', error);
+      console.log('Signup error:', error);
       Alert.alert('Error', 'Something went wrong. Please try again.');
     } finally {
       setLoading(false);

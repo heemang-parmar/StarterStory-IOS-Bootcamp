@@ -3,8 +3,9 @@ import { supabase } from '@/lib/supabase';
 import { useRouter } from 'expo-router';
 import { useAtom } from 'jotai';
 import React, { useEffect, useState } from 'react';
-import { FlatList, Image, KeyboardAvoidingView, Platform, StatusBar, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
-import { NotificationBell } from '@/components/NotificationBell';
+import { FlatList, Image, KeyboardAvoidingView, Platform, StatusBar, StyleSheet, Text, TextInput, TouchableOpacity, View, Share } from 'react-native';
+import { BrandColors } from '@/constants/Colors';
+import { IconSymbol } from '@/components/ui/IconSymbol';
 
 export default function HomeScreen() {
   const router = useRouter();
@@ -68,6 +69,39 @@ export default function HomeScreen() {
     }
   };
 
+  const handleSurpriseMe = () => {
+    const surprisePrompts = [
+      "I have some leftover chicken and rice. What can I make?",
+      "Quick healthy dinner with vegetables",
+      "Creative pasta dish with what's in my pantry",
+      "Easy breakfast with eggs and bread",
+      "Healthy snack ideas with fruits",
+      "Simple dessert with basic ingredients",
+      "One-pot meal for busy weeknight",
+      "Kid-friendly lunch ideas",
+      "Vegetarian dinner with beans",
+      "Quick meal with frozen ingredients"
+    ];
+    const randomPrompt = surprisePrompts[Math.floor(Math.random() * surprisePrompts.length)];
+    router.push(`/loading?prompt=${encodeURIComponent(randomPrompt)}`);
+  };
+
+  const handleShareRecipe = async (item: Session) => {
+    try {
+      const recipe = item.recipes?.[0];
+      if (!recipe) return;
+      
+      const message = `Check out this recipe: ${recipe.name}\n\nCooking time: ${recipe.cookingTime} min\nServings: ${recipe.servings}\n\nMade with DishDecide!`;
+      
+      await Share.share({
+        message,
+        title: recipe.name
+      });
+    } catch (error) {
+      console.error('Error sharing:', error);
+    }
+  };
+
 
   return (
     <KeyboardAvoidingView 
@@ -80,12 +114,9 @@ export default function HomeScreen() {
         <View style={styles.logoBox}>
           <Image source={require('../../assets/images/icon.png')} style={styles.logoImage} />
         </View>
-        <View style={styles.headerRight}>
-          <NotificationBell />
-          <TouchableOpacity style={styles.settingsButton} onPress={() => router.push('/settings')}>
-            <Text style={styles.settingsIcon}>⚙️</Text>
-          </TouchableOpacity>
-        </View>
+        <TouchableOpacity style={styles.settingsButton} onPress={() => router.push('/settings')}>
+          <IconSymbol name="gearshape.fill" size={24} color={BrandColors.warmGray} />
+        </TouchableOpacity>
       </View>
 
       <View style={styles.content}>
@@ -103,7 +134,18 @@ export default function HomeScreen() {
                 <Text style={styles.sessionDate}>{item.date}</Text>
                 <Text style={styles.sessionTitle}>{item.title}</Text>
               </View>
-              <Text style={styles.sessionArrow}>→</Text>
+              <View style={styles.sessionActions}>
+                <TouchableOpacity 
+                  style={styles.shareButton} 
+                  onPress={(e) => {
+                    e.stopPropagation();
+                    handleShareRecipe(item);
+                  }}
+                >
+                  <IconSymbol name="square.and.arrow.up" size={20} color={BrandColors.primary} />
+                </TouchableOpacity>
+                <Text style={styles.sessionArrow}>→</Text>
+              </View>
             </TouchableOpacity>
           )}
           ListEmptyComponent={
@@ -118,11 +160,17 @@ export default function HomeScreen() {
         />
       </View>
       
+      {/* Surprise Me Button */}
+      <TouchableOpacity style={styles.surpriseButton} onPress={handleSurpriseMe}>
+        <Text style={styles.surpriseIcon}>🎲</Text>
+        <Text style={styles.surpriseText}>Surprise Me!</Text>
+      </TouchableOpacity>
+      
       <View style={styles.inputContainer}>
         <TextInput
           style={styles.textInput}
           placeholder="ask something here to get started!"
-          placeholderTextColor="#999"
+          placeholderTextColor={BrandColors.warmGray}
           value={input}
           onChangeText={setInput}
           multiline
@@ -143,48 +191,46 @@ export default function HomeScreen() {
 const styles = StyleSheet.create({
   container: { 
     flex: 1, 
-    backgroundColor: '#fff',
+    backgroundColor: BrandColors.cream,
     paddingTop: StatusBar.currentHeight || 44, // Add padding for status bar
   },
   header: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    padding: 16,
-    paddingTop: 8,
-  },
-  headerRight: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    padding: 20,
+    paddingTop: 12,
   },
   logoBox: { 
     width: 60,
     height: 60,
     justifyContent: 'center',
     alignItems: 'center',
-    borderRadius: 12,
+    borderRadius: 16,
   },
   logoImage: {
-    width: 40,
-    height: 40,
+    width: 44,
+    height: 44,
     resizeMode: 'contain',
   },
   settingsButton: {
-    padding: 8,
+    padding: 10,
+    borderRadius: 12,
   },
   settingsIcon: {
     fontSize: 24,
-    color: '#000',
+    color: BrandColors.warmGray,
   },
   content: {
     flex: 1,
     paddingHorizontal: 16,
   },
   sectionTitle: {
-    fontSize: 16,
-    color: '#333',
-    marginBottom: 16,
+    fontSize: 18,
+    color: BrandColors.softBlack,
+    marginBottom: 20,
     fontWeight: '600',
+    letterSpacing: -0.3,
   },
   listContainer: { 
     flexGrow: 1,
@@ -192,60 +238,90 @@ const styles = StyleSheet.create({
   sessionItem: { 
     flexDirection: 'row',
     alignItems: 'center',
-    paddingVertical: 16,
-    paddingHorizontal: 16,
-    borderBottomWidth: 1,
-    borderBottomColor: '#f0f0f0',
+    paddingVertical: 18,
+    paddingHorizontal: 20,
+    marginHorizontal: 4,
+    marginBottom: 12,
+    backgroundColor: BrandColors.white,
+    borderRadius: 16,
+    shadowColor: BrandColors.warmGray,
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.06,
+    shadowRadius: 8,
+    elevation: 2,
   },
   sessionContent: {
     flex: 1,
   },
   sessionDate: { 
     fontSize: 14, 
-    color: '#999',
-    marginBottom: 4,
+    color: BrandColors.warmGray,
+    marginBottom: 6,
+    letterSpacing: -0.2,
   },
   sessionTitle: { 
-    fontSize: 16, 
+    fontSize: 17, 
     fontWeight: '500',
-    color: '#000',
+    color: BrandColors.softBlack,
+    letterSpacing: -0.3,
   },
   sessionArrow: {
     fontSize: 20,
-    color: '#999',
-    marginLeft: 16,
+    color: BrandColors.warmGray,
+    marginLeft: 12,
+  },
+  sessionActions: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  shareButton: {
+    padding: 10,
+    marginRight: 8,
+    borderRadius: 8,
+  },
+  shareIcon: {
+    fontSize: 18,
   },
   emptyContainer: {
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    paddingHorizontal: 24,
-    paddingVertical: 60,
+    paddingHorizontal: 32,
+    paddingVertical: 80,
   },
   emptyText: {
-    fontSize: 16,
-    color: '#999',
+    fontSize: 17,
+    color: BrandColors.warmGray,
     textAlign: 'center',
-    marginBottom: 8,
+    marginBottom: 10,
+    letterSpacing: -0.3,
   },
   emptySubtext: {
-    fontSize: 14,
-    color: '#999',
+    fontSize: 15,
+    color: BrandColors.warmGray,
     textAlign: 'center',
+    letterSpacing: -0.2,
   },
   inputContainer: {
     flexDirection: 'row',
-    padding: 16,
-    backgroundColor: '#000',
+    padding: 18,
+    backgroundColor: BrandColors.lightBeige,
     borderRadius: 24,
-    margin: 16,
+    marginHorizontal: 20,
+    marginBottom: 20,
     alignItems: 'center',
+    shadowColor: BrandColors.warmGray,
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.06,
+    shadowRadius: 8,
+    elevation: 2,
   },
   textInput: {
     flex: 1,
-    color: '#fff',
+    color: BrandColors.softBlack,
     fontSize: 16,
-    paddingVertical: 8,
+    paddingVertical: 4,
+    letterSpacing: -0.3,
   },
   sendButton: {
     backgroundColor: 'transparent',
@@ -254,14 +330,40 @@ const styles = StyleSheet.create({
     marginLeft: 8,
   },
   sendButtonDisabled: {
-    opacity: 0.5,
+    opacity: 0.4,
   },
   sendText: {
-    color: '#fff',
-    fontSize: 20,
-    fontWeight: 'bold',
+    color: BrandColors.primary,
+    fontSize: 22,
+    fontWeight: '600',
   },
   sendTextDisabled: {
-    color: '#666',
+    color: BrandColors.warmGray,
+  },
+  surpriseButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: BrandColors.primary,
+    paddingVertical: 14,
+    paddingHorizontal: 28,
+    borderRadius: 24,
+    marginHorizontal: 20,
+    marginBottom: 12,
+    shadowColor: BrandColors.primary,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.15,
+    shadowRadius: 8,
+    elevation: 3,
+  },
+  surpriseIcon: {
+    fontSize: 22,
+    marginRight: 10,
+  },
+  surpriseText: {
+    fontSize: 17,
+    fontWeight: '600',
+    color: BrandColors.white,
+    letterSpacing: -0.3,
   },
 });

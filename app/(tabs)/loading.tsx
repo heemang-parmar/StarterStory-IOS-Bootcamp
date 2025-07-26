@@ -135,7 +135,8 @@ export default function LoadingScreen() {
           });
 
         if (insertError) {
-          console.error('Error saving recipe to database:', insertError);
+          // Log error silently without showing it to user
+          console.log('Database save skipped:', insertError.code);
           // Continue anyway - show the recipe even if saving failed
         } else {
           console.log('Recipe saved to database successfully');

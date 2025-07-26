@@ -1,26 +1,41 @@
 /**
- * Below are the colors that are used in the app. The colors are defined in the light and dark mode.
- * There are many other ways to style your app. For example, [Nativewind](https://www.nativewind.dev/), [Tamagui](https://tamagui.dev/), [unistyles](https://reactnativeunistyles.vercel.app), etc.
+ * DishDecide Brand Colors
+ * Warm, inviting palette that creates an emotionally safe and supportive environment
  */
 
-const tintColorLight = '#0a7ea4';
-const tintColorDark = '#fff';
+// Brand colors
+export const BrandColors = {
+  primary: '#E67E50',      // Warm signature orange
+  primaryLight: '#F4A577',  // Lighter orange for hover states
+  cream: '#FDF6F0',        // Light, grounding background
+  burgundy: '#8B3A3A',     // Deep burgundy for trust and depth
+  softBlack: '#2C2825',    // Warm black, not harsh
+  warmGray: '#6B6560',     // Utility gray with warmth
+  lightBeige: '#F5E6D3',   // Input backgrounds, soft surfaces
+  borderLight: '#E6D5C7',  // Subtle borders
+  success: '#7CB342',      // Soft green for success states
+  white: '#FFFFFF',        // Pure white
+};
+
+// Legacy color system (for compatibility)
+const tintColorLight = BrandColors.primary;
+const tintColorDark = BrandColors.cream;
 
 export const Colors = {
   light: {
-    text: '#11181C',
-    background: '#fff',
+    text: BrandColors.softBlack,
+    background: BrandColors.cream,
     tint: tintColorLight,
-    icon: '#687076',
-    tabIconDefault: '#687076',
-    tabIconSelected: tintColorLight,
+    icon: BrandColors.warmGray,
+    tabIconDefault: BrandColors.warmGray,
+    tabIconSelected: BrandColors.primary,
   },
   dark: {
-    text: '#ECEDEE',
-    background: '#151718',
+    text: BrandColors.cream,
+    background: BrandColors.softBlack,
     tint: tintColorDark,
-    icon: '#9BA1A6',
-    tabIconDefault: '#9BA1A6',
-    tabIconSelected: tintColorDark,
+    icon: BrandColors.warmGray,
+    tabIconDefault: BrandColors.warmGray,
+    tabIconSelected: BrandColors.cream,
   },
 };

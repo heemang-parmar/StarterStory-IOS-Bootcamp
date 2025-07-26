@@ -6,7 +6,6 @@ import { router, Stack } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import React, { useEffect, useState } from 'react';
 import 'react-native-reanimated';
-import { UnreadProvider } from '@/lib/unreadContext';
 
 export default function RootLayout() {
   const [loaded] = useFonts({
@@ -36,6 +35,9 @@ export default function RootLayout() {
       
       if (event === 'SIGNED_IN' && isAuthenticated) {
         router.replace('/(tabs)');
+      } else if (event === 'SIGNED_OUT') {
+        setIsSignedIn(false);
+        router.replace('/login');
       }
     });
     
@@ -52,13 +54,11 @@ export default function RootLayout() {
   if (isSignedIn) {
     return (
       <ThemeProvider value={DefaultTheme}>
-        <UnreadProvider>
-          <Stack screenOptions={{ headerShown: false }}>
-            <Stack.Screen name="(tabs)" />
-            <Stack.Screen name="+not-found" />
-          </Stack>
-          <StatusBar style="auto" />
-        </UnreadProvider>
+        <Stack screenOptions={{ headerShown: false }}>
+          <Stack.Screen name="(tabs)" />
+          <Stack.Screen name="+not-found" />
+        </Stack>
+        <StatusBar style="auto" />
       </ThemeProvider>
     );
   }

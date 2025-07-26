@@ -30,43 +30,13 @@ export default function PersonalizingScreen() {
   useEffect(() => {
     const savePreferences = async () => {
       try {
-        // Get current user session
-        const { data: { session } } = await supabase.auth.getSession();
-        
-        if (!session) {
-          console.error('No session found');
-          router.replace('/signup');
-          return;
-        }
-
         // Parse dietary restrictions from comma-separated string
         const dietaryRestrictions = q2 ? q2.split(', ').filter(item => item.trim() !== '') : [];
         
         // Parse favorite cuisines
         const favoriteCuisines = Array.isArray(q3) ? q3 : q3 ? [q3] : [];
 
-        // Save preferences to database using upsert (insert or update)
-        const { error } = await supabase
-          .from('user_preferences')
-          .upsert({
-            user_id: session.user.id,
-            cooking_skill: q1 || '',
-            dietary_restrictions: dietaryRestrictions,
-            dietary_preference: dietaryPreference || '',
-            favorite_cuisines: favoriteCuisines,
-          }, {
-            onConflict: 'user_id'
-          });
-
-        if (error) {
-          console.error('Error saving preferences:', error);
-          Alert.alert('Error', 'Failed to save your preferences. Please try again.');
-          return;
-        }
-
-        console.log('Preferences saved successfully');
-
-        // Also save to local storage for quick access
+        // Save to local storage for quick access
         const answers: PersonalizationAnswers = {
           q1: q1 || '',
           q2: q2 || '',
@@ -74,9 +44,36 @@ export default function PersonalizingScreen() {
         };
         setPersonalization(answers);
 
+        // Get current user session
+        const { data: { session } } = await supabase.auth.getSession();
+        
+        if (session) {
+          // If there's a session, save preferences to database
+          const { error } = await supabase
+            .from('user_preferences')
+            .upsert({
+              user_id: session.user.id,
+              cooking_skill: q1 || '',
+              dietary_restrictions: dietaryRestrictions,
+              dietary_preference: dietaryPreference || '',
+              favorite_cuisines: favoriteCuisines,
+            }, {
+              onConflict: 'user_id'
+            });
+
+          if (error) {
+            console.log('Error saving preferences to database:', error);
+            // Don't show error - preferences are saved locally
+          } else {
+            console.log('Preferences saved to database successfully');
+          }
+        } else {
+          console.log('No session - preferences saved locally for after signup');
+        }
+
       } catch (error) {
-        console.error('Error in savePreferences:', error);
-        Alert.alert('Error', 'Something went wrong. Please try again.');
+        console.log('Error in savePreferences:', error);
+        // Don't show error alert - let the flow continue
       }
     };
 

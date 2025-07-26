@@ -26,6 +26,9 @@ const MAPPING = {
   'gearshape.fill': 'settings',
   'clock.fill': 'access-time',
   'xmark': 'close',
+  'person.circle.fill': 'account-circle',
+  'square.and.arrow.up': 'share',
+  'arrowshape.turn.up.right': 'reply',
 } as IconMapping;
 
 /**

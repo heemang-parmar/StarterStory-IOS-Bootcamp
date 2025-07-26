@@ -1,113 +1,34 @@
 import { Session, sessionsAtom } from '@/lib/atoms';
-import { supabase } from '@/lib/supabase';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useAtom } from 'jotai';
-import React, { useState, useEffect } from 'react';
-import { SafeAreaView, ScrollView, StyleSheet, Text, TouchableOpacity, View, Image, Alert, Modal, TextInput } from 'react-native';
+import React from 'react';
+import { SafeAreaView, ScrollView, StyleSheet, Text, TouchableOpacity, View, Image, Share } from 'react-native';
+import { BrandColors } from '@/constants/Colors';
+import { IconSymbol } from '@/components/ui/IconSymbol';
 
 export default function Detail() {
   const router = useRouter();
   const { id } = useLocalSearchParams<{ id: string }>();
   const [sessions] = useAtom(sessionsAtom);
   const session = sessions.find((s: Session) => s.id === id);
-  const [hasPartner, setHasPartner] = useState(false);
-  const [showShareModal, setShowShareModal] = useState(false);
-  const [shareMessage, setShareMessage] = useState('');
-  const [sharing, setSharing] = useState(false);
-  const [partner, setPartner] = useState<any>(null);
-  const [partnerId, setPartnerId] = useState<string>('');
 
-  useEffect(() => {
-    checkPartnerStatus();
-  }, []);
-
-  const checkPartnerStatus = async () => {
-    try {
-      const { data: { session: authSession } } = await supabase.auth.getSession();
-      if (!authSession) return;
-
-      const { data: partnership } = await supabase
-        .from('partnerships')
-        .select('*')
-        .or(`user1_id.eq.${authSession.user.id},user2_id.eq.${authSession.user.id}`)
-        .single();
-
-      if (partnership) {
-        setHasPartner(true);
-        
-        // Get partner's ID and profile
-        const partnerIdValue = partnership.user1_id === authSession.user.id 
-          ? partnership.user2_id 
-          : partnership.user1_id;
-
-        setPartnerId(partnerIdValue);
-
-        const { data: partnerProfile } = await supabase
-          .from('user_profiles')
-          .select('*')
-          .eq('user_id', partnerIdValue)
-          .single();
-
-        setPartner(partnerProfile);
-      }
-    } catch (error) {
-      console.error('Error checking partner status:', error);
-    }
-  };
-
-  const shareWithPartner = async () => {
-    if (!session || !partner) return;
+  const handleShare = async () => {
+    if (!session || !session.recipes || session.recipes.length === 0) return;
 
     try {
-      setSharing(true);
-      const { data: { session: authSession } } = await supabase.auth.getSession();
-      if (!authSession) return;
+      const recipe = session.recipes[0];
+      const message = `Check out this recipe I found: ${recipe.name}\n\nCooking time: ${recipe.cookingTime} min\nServings: ${recipe.servings}\nDifficulty: ${recipe.difficulty}\n\nMade with DishDecide!`;
+      
+      const result = await Share.share({
+        message,
+        title: recipe.name
+      });
 
-      // Get recipe from database
-      const { data: dbRecipe } = await supabase
-        .from('recipes')
-        .select('*')
-        .eq('id', id)
-        .single();
-
-      if (!dbRecipe) {
-        Alert.alert('Error', 'Recipe not found in database');
-        return;
+      if (result.action === Share.sharedAction) {
+        console.log('Recipe shared successfully');
       }
-
-      // Check if already shared
-      const { data: existing } = await supabase
-        .from('shared_recipes')
-        .select('*')
-        .eq('recipe_id', id)
-        .eq('shared_by', authSession.user.id)
-        .single();
-
-      if (existing) {
-        Alert.alert('Info', 'This recipe has already been shared with your partner');
-        return;
-      }
-
-      // Share the recipe
-      const { error } = await supabase
-        .from('shared_recipes')
-        .insert({
-          recipe_id: id,
-          shared_by: authSession.user.id,
-          shared_with: partnerId,
-          message: shareMessage.trim() || null
-        });
-
-      if (error) throw error;
-
-      Alert.alert('Success', 'Recipe shared with your partner!');
-      setShowShareModal(false);
-      setShareMessage('');
     } catch (error) {
-      console.error('Error sharing recipe:', error);
-      Alert.alert('Error', 'Failed to share recipe');
-    } finally {
-      setSharing(false);
+      console.error('Error sharing:', error);
     }
   };
 
@@ -213,68 +134,18 @@ export default function Detail() {
           </View>
         )}
 
-        {/* Share with Partner Button */}
-        {hasPartner && (
-          <TouchableOpacity 
-            style={[styles.button, styles.shareButton]} 
-            onPress={() => setShowShareModal(true)}
-          >
-            <Text style={styles.buttonText}>Share with {partner?.display_name || 'Partner'}</Text>
-          </TouchableOpacity>
-        )}
+        {/* Share Button */}
+        <TouchableOpacity 
+          style={[styles.button, styles.shareButton]} 
+          onPress={handleShare}
+        >
+          <Text style={styles.buttonText}>Share Recipe</Text>
+        </TouchableOpacity>
 
         <TouchableOpacity style={styles.button} onPress={() => router.replace('/(tabs)')}>
           <Text style={styles.buttonText}>Try another recipe</Text>
         </TouchableOpacity>
       </ScrollView>
-
-      {/* Share Modal */}
-      <Modal
-        visible={showShareModal}
-        animationType="slide"
-        transparent={true}
-        onRequestClose={() => setShowShareModal(false)}
-      >
-        <View style={styles.modalOverlay}>
-          <View style={styles.modalContent}>
-            <Text style={styles.modalTitle}>Share Recipe</Text>
-            <Text style={styles.modalSubtitle}>
-              Share "{session.title}" with {partner?.display_name || 'your partner'}
-            </Text>
-            
-            <TextInput
-              style={styles.modalInput}
-              placeholder="Add a message (optional)"
-              value={shareMessage}
-              onChangeText={setShareMessage}
-              multiline
-              numberOfLines={3}
-              textAlignVertical="top"
-            />
-            
-            <View style={styles.modalButtons}>
-              <TouchableOpacity 
-                style={[styles.modalButton, styles.cancelModalButton]}
-                onPress={() => {
-                  setShowShareModal(false);
-                  setShareMessage('');
-                }}
-              >
-                <Text style={styles.cancelModalButtonText}>Cancel</Text>
-              </TouchableOpacity>
-              <TouchableOpacity 
-                style={[styles.modalButton, styles.shareModalButton]}
-                onPress={shareWithPartner}
-                disabled={sharing}
-              >
-                <Text style={styles.shareModalButtonText}>
-                  {sharing ? 'Sharing...' : 'Share Recipe'}
-                </Text>
-              </TouchableOpacity>
-            </View>
-          </View>
-        </View>
-      </Modal>
     </SafeAreaView>
   );
 }
@@ -282,15 +153,15 @@ export default function Detail() {
 const styles = StyleSheet.create({
   container: { 
     flex: 1,
-    backgroundColor: '#fff'
+    backgroundColor: BrandColors.cream
   },
   header: {
     flexDirection: 'row',
     alignItems: 'center',
-    padding: 16,
+    padding: 20,
     borderBottomWidth: 1,
-    borderBottomColor: '#e0e0e0',
-    backgroundColor: '#fff',
+    borderBottomColor: BrandColors.borderLight,
+    backgroundColor: BrandColors.white,
   },
   backButton: {
     padding: 8,
@@ -298,13 +169,14 @@ const styles = StyleSheet.create({
   },
   backButtonText: {
     fontSize: 16,
-    color: '#007AFF',
+    color: BrandColors.primary,
     fontWeight: '500',
   },
   headerTitle: {
     fontSize: 18,
     fontWeight: '600',
-    color: '#000',
+    color: BrandColors.softBlack,
+    letterSpacing: -0.3,
   },
   content: { 
     padding: 16
@@ -465,83 +337,30 @@ const styles = StyleSheet.create({
     lineHeight: 20,
   },
   button: { 
-    backgroundColor: '#007AFF', 
-    padding: 16, 
-    borderRadius: 12, 
+    backgroundColor: BrandColors.primary, 
+    paddingVertical: 16,
+    paddingHorizontal: 24,
+    borderRadius: 24, 
     alignItems: 'center',
     marginBottom: 12,
+    shadowColor: BrandColors.primary,
+    shadowOffset: { width: 0, height: 3 },
+    shadowOpacity: 0.12,
+    shadowRadius: 6,
+    elevation: 2,
   },
   buttonText: { 
-    color: '#fff', 
-    fontSize: 16, 
-    fontWeight: 'bold' 
+    color: BrandColors.white, 
+    fontSize: 17, 
+    fontWeight: '600',
+    letterSpacing: -0.3, 
   },
   shareButton: {
-    backgroundColor: '#4CAF50',
-  },
-  // Modal Styles
-  modalOverlay: {
-    flex: 1,
-    backgroundColor: 'rgba(0, 0, 0, 0.5)',
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  modalContent: {
-    backgroundColor: '#fff',
-    borderRadius: 16,
-    padding: 24,
-    width: '90%',
-    maxWidth: 400,
-  },
-  modalTitle: {
-    fontSize: 20,
-    fontWeight: '600',
-    color: '#000',
-    marginBottom: 8,
-    textAlign: 'center',
-  },
-  modalSubtitle: {
-    fontSize: 14,
-    color: '#666',
-    marginBottom: 20,
-    textAlign: 'center',
-  },
-  modalInput: {
-    borderWidth: 1,
-    borderColor: '#e0e0e0',
-    borderRadius: 8,
-    padding: 12,
-    fontSize: 16,
-    marginBottom: 20,
-    minHeight: 80,
-  },
-  modalButtons: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    gap: 12,
-  },
-  modalButton: {
-    flex: 1,
-    paddingVertical: 12,
-    borderRadius: 8,
-    alignItems: 'center',
-  },
-  cancelModalButton: {
-    backgroundColor: '#f0f0f0',
-    borderWidth: 1,
-    borderColor: '#e0e0e0',
-  },
-  cancelModalButtonText: {
-    color: '#666',
-    fontSize: 16,
-    fontWeight: '500',
-  },
-  shareModalButton: {
-    backgroundColor: '#4CAF50',
-  },
-  shareModalButtonText: {
-    color: '#fff',
-    fontSize: 16,
-    fontWeight: '600',
+    backgroundColor: BrandColors.success,
+    shadowColor: BrandColors.success,
+    shadowOffset: { width: 0, height: 3 },
+    shadowOpacity: 0.15,
+    shadowRadius: 6,
+    elevation: 3,
   },
 });
